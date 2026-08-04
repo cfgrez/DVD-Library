@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Loader } from 'lucide-react';
+import { searchBarcodeLocally } from '../data/barcodeDatabase';
 
 const OMDb_API_KEY = 'k_fx7nk87h'; // API key gratuita de OMDb
 
@@ -19,7 +20,7 @@ export default function DVDForm({ onAdd }) {
   const [error, setError] = useState('');
   const [useManual, setUseManual] = useState(false);
 
-  // Búsqueda por título en OMDb (aproximación al código de barras)
+  // Búsqueda por código de barras o título
   const searchByBarcode = async () => {
     if (!barcode.trim()) {
       setError('Ingresa un código de barras o título');
@@ -30,10 +31,43 @@ export default function DVDForm({ onAdd }) {
     setError('');
 
     try {
-      // Si el barcode parece un ISBN/código, lo usamos como búsqueda de película
       const query = barcode.trim();
+      let movieTitle = query;
+      
+      // PASO 1: Verificar si es un código numérico
+      if (/^\d+$/.test(query) && query.length >= 10) {
+        // PASO 2: Buscar primero en la base de datos local
+        const localMatch = searchBarcodeLocally(query);
+        if (localMatch) {
+          movieTitle = localMatch;
+        } else {
+          // PASO 3: Si no está en local, intentar decodificar con Open Food Facts
+          try {
+            const barcodeResponse = await fetch(
+              `https://world.openfoodfacts.org/api/v0/product/${query}.json`
+            );
+            const barcodeData = await barcodeResponse.json();
+            
+            if (barcodeData.product && barcodeData.product.product_name) {
+              movieTitle = barcodeData.product.product_name;
+            } else {
+              setError('Código de barras no está en la base de datos. Por favor, ingresa el título manualmente o agrega el código a barcodeDatabase.js');
+              setUseManual(true);
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            setError('Código de barras no identificado. Ingresa el título manualmente.');
+            setUseManual(true);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      
+      // PASO 4: Buscar la película en OMDb
       const response = await fetch(
-        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(query)}&type=movie`
+        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(movieTitle)}&type=movie`
       );
       const data = await response.json();
 
@@ -50,11 +84,11 @@ export default function DVDForm({ onAdd }) {
         });
         setBarcode('');
       } else {
-        setError('Película no encontrada. Intenta con el título o completa manualmente.');
+        setError(`Película "${movieTitle}" no encontrada en IMDb. Intenta con otro título o completa manualmente.`);
         setUseManual(true);
       }
     } catch (err) {
-      setError('Error de conexión. Completa manualmente.');
+      setError('Error de conexión. Completa los datos manualmente.');
       setUseManual(true);
     } finally {
       setLoading(false);
