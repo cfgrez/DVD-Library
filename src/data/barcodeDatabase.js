@@ -1,38 +1,60 @@
-// 📀 Base de Datos Local de Códigos de Barras para DVDs
-// Expande esta lista con los códigos de tus DVDs
+// 📀 Base de Datos de DVDs con Códigos de Barras Reales
+// Esta es una base de datos comunitaria que se construye con el tiempo
 
-export const barcodeDatabase = {
-  // Formato: 'código_de_barras': 'Título de la Película'
+export const dvdDatabase = {
+  // Formato: 'código_de_barras': { título, año, actores, género, sinopsis }
   
-  // Películas Populares (Ejemplos)
-  '8414533010795': 'Avatar',
-  '031398134626': 'The Matrix',
+  // Ejemplos iniciales (agregaremos más)
+  '8414533010795': {
+    titulo: 'Avatar',
+    año: 2009,
+    actores: 'Sam Worthington, Zoe Saldana, Stephen Lang',
+    genre: 'Ficción Científica, Aventura',
+    edad: 'PG-13',
+    sinopsis: 'Un parapléjico de Guerra de Mentes se convierte en guerrero.',
+    caratula: 'https://m.media-amazon.com/images/M/MV5BMjEyOTYzOTY0NV5BMl5BanBnXkFtZTcwOTAyNDI3OA@@._V1_SX300.jpg'
+  },
   
-  // Agrega tus códigos aquí:
-  // '123456789012': 'Título de tu película',
-  // '123456789013': 'Otra película',
-  
-  // Notas:
-  // - Los códigos deben ser strings (texto)
-  // - El título debe ser exacto (como aparece en IMDb)
-  // - Cuando agregues un código, la app lo buscará automáticamente
+  '031398134626': {
+    titulo: 'The Matrix',
+    año: 1999,
+    actores: 'Keanu Reeves, Laurence Fishburne, Carrie-Anne Moss',
+    genre: 'Ficción Científica, Acción',
+    edad: 'R',
+    sinopsis: 'Un hacker descubre la realidad y se une a una rebelión.',
+    caratula: 'https://m.media-amazon.com/images/M/MV5BNzQzOTk3OTAtNDQ0Zi00ZTAwLWI5ZTUtMTY4ZmQ3MjUyODRlXkEyXkFqcGdeQXVyNjU0OTQ0OTY@._V1_SX300.jpg'
+  },
+
+  // AQUÍ AGREGA TUS CÓDIGOS:
+  // '1234567890': {
+  //   titulo: 'Nombre de la película',
+  //   año: 2020,
+  //   actores: 'Actor 1, Actor 2',
+  //   genre: 'Género',
+  //   edad: 'PG-13',
+  //   sinopsis: 'Sinopsis corta...',
+  //   caratula: 'https://...'
+  // }
 };
 
-// Función para buscar en la base de datos local
-export const searchBarcodeLocally = (barcode) => {
-  return barcodeDatabase[barcode] || null;
+// Función para buscar DVD por código de barras
+export const searchDVDByBarcode = (barcode) => {
+  return dvdDatabase[barcode] || null;
 };
 
-// Función para agregar nuevos códigos
-export const addBarcodeMapping = (barcode, title) => {
-  barcodeDatabase[barcode] = title;
-  console.log(`✅ Código agregado: ${barcode} → ${title}`);
+// Función para agregar un nuevo DVD
+export const addDVDBarcode = (barcode, dvdInfo) => {
+  dvdDatabase[barcode] = dvdInfo;
+  console.log(`✅ DVD agregado: ${barcode} → ${dvdInfo.titulo}`);
 };
 
 // Función para obtener todos los códigos registrados
-export const getAllBarcodes = () => {
-  return Object.entries(barcodeDatabase).map(([code, title]) => ({
-    barcode: code,
-    title
-  }));
+export const getAllRegisteredBarcodes = () => {
+  return Object.keys(dvdDatabase);
 };
+
+// Función para validar si un código existe
+export const barcodeExists = (barcode) => {
+  return barcode in dvdDatabase;
+};
+

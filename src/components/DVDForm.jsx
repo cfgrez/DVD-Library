@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Search, Loader } from 'lucide-react';
-import { searchBarcodeLocally } from '../data/barcodeDatabase';
+import { searchDVDByBarcode } from '../data/barcodeDatabase';
 
-const OMDb_API_KEY = 'k_fx7nk87h'; // API key gratuita de OMDb
+const OMDb_API_KEY = 'k_fx7nk87h';
 
 export default function DVDForm({ onAdd }) {
   const [barcode, setBarcode] = useState('');
@@ -32,42 +32,38 @@ export default function DVDForm({ onAdd }) {
 
     try {
       const query = barcode.trim();
-      let movieTitle = query;
       
-      // PASO 1: Verificar si es un código numérico
+      // PASO 1: Si es un código de barras (números), buscar primero en BD local de DVDs
       if (/^\d+$/.test(query) && query.length >= 10) {
-        // PASO 2: Buscar primero en la base de datos local
-        const localMatch = searchBarcodeLocally(query);
-        if (localMatch) {
-          movieTitle = localMatch;
+        const dvdLocal = searchDVDByBarcode(query);
+        
+        if (dvdLocal) {
+          // ✅ ENCONTRADO EN BD LOCAL - Traer TODA la información del DVD
+          setFormData({
+            titulo: dvdLocal.titulo || '',
+            año: dvdLocal.año?.toString() || '',
+            region: 'USA',
+            genre: dvdLocal.genre?.split(',')[0].trim() || '',
+            edad: dvdLocal.edad || 'PG',
+            actores: dvdLocal.actores || '',
+            caratula: dvdLocal.caratula || '',
+            notas: `Código de barras: ${query} - ${dvdLocal.sinopsis || ''}`
+          });
+          setBarcode('');
+          setLoading(false);
+          return;
         } else {
-          // PASO 3: Si no está en local, intentar decodificar con Open Food Facts
-          try {
-            const barcodeResponse = await fetch(
-              `https://world.openfoodfacts.org/api/v0/product/${query}.json`
-            );
-            const barcodeData = await barcodeResponse.json();
-            
-            if (barcodeData.product && barcodeData.product.product_name) {
-              movieTitle = barcodeData.product.product_name;
-            } else {
-              setError('Código de barras no está en la base de datos. Por favor, ingresa el título manualmente o agrega el código a barcodeDatabase.js');
-              setUseManual(true);
-              setLoading(false);
-              return;
-            }
-          } catch (err) {
-            setError('Código de barras no identificado. Ingresa el título manualmente.');
-            setUseManual(true);
-            setLoading(false);
-            return;
-          }
+          // ❌ NO ENCONTRADO EN BD LOCAL
+          setError(`Código de barras ${query} no registrado en nuestra base de datos.\n\nOpciones:\n1. Ingresa el título de la película manualmente\n2. Agrega este código a barcodeDatabase.js`);
+          setUseManual(true);
+          setLoading(false);
+          return;
         }
       }
       
-      // PASO 4: Buscar la película en OMDb
+      // PASO 2: Si no es código numérico, buscar por título en OMDb
       const response = await fetch(
-        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(movieTitle)}&type=movie`
+        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(query)}&type=movie`
       );
       const data = await response.json();
 
@@ -84,7 +80,7 @@ export default function DVDForm({ onAdd }) {
         });
         setBarcode('');
       } else {
-        setError(`Película "${movieTitle}" no encontrada en IMDb. Intenta con otro título o completa manualmente.`);
+        setError(`Película "${query}" no encontrada. Intenta con otro título o ingresa el código de barras si está registrado.`);
         setUseManual(true);
       }
     } catch (err) {
