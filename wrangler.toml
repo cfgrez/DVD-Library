@@ -1,14 +1,2 @@
-name = "dvd-library"
-main = "src/main.jsx"
-compatibility_date = "2024-08-04"
-
-[env.production]
-name = "dvd-library-prod"
-
-[build]
-command = "npm run build"
-cwd = "./"
-watch_paths = ["src/**/*.{js,jsx,css}"]
-
-[build.upload]
-format = "service-worker"
+# Este archivo puede ser eliminado - Cloudflare Pages usa package.json y vite.config.js
+# Se mantiene aquí solo si usarás Cloudflare Workers en el futuro
