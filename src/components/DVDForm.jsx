@@ -20,7 +20,7 @@ export default function DVDForm({ onAdd }) {
   const [error, setError] = useState('');
   const [useManual, setUseManual] = useState(false);
 
-  // Búsqueda por código de barras o título
+  // Búsqueda por código de barras o título - SISTEMA AUTOMÁTICO COMPLETO
   const searchByBarcode = async () => {
     if (!barcode.trim()) {
       setError('Ingresa un código de barras o título');
@@ -32,13 +32,13 @@ export default function DVDForm({ onAdd }) {
 
     try {
       const query = barcode.trim();
+      let movieTitle = null;
       
-      // PASO 1: Si es un código de barras (números), buscar primero en BD local de DVDs
+      // PASO 1: Si es un código de barras (números), intentar decodificar automáticamente
       if (/^\d+$/.test(query) && query.length >= 10) {
+        // PASO 1A: Buscar primero en BD local
         const dvdLocal = searchDVDByBarcode(query);
-        
         if (dvdLocal) {
-          // ✅ ENCONTRADO EN BD LOCAL - Traer TODA la información del DVD
           setFormData({
             titulo: dvdLocal.titulo || '',
             año: dvdLocal.año?.toString() || '',
@@ -52,18 +52,53 @@ export default function DVDForm({ onAdd }) {
           setBarcode('');
           setLoading(false);
           return;
-        } else {
-          // ❌ NO ENCONTRADO EN BD LOCAL
-          setError(`Código de barras ${query} no registrado en nuestra base de datos.\n\nOpciones:\n1. Ingresa el título de la película manualmente\n2. Agrega este código a barcodeDatabase.js`);
+        }
+
+        // PASO 1B: Intentar decodificar con EAN Search API (GRATUITA)
+        try {
+          const eanResponse = await fetch(
+            `https://www.ean-search.org/?q=${query}&format=json`
+          );
+          const eanData = await eanResponse.json();
+          
+          if (eanData && eanData.barcodes && eanData.barcodes.length > 0) {
+            const product = eanData.barcodes[0];
+            movieTitle = product.name || product.title;
+          }
+        } catch (err) {
+          // EAN Search falló, intentar siguiente API
+        }
+
+        // PASO 1C: Intentar con Open Food Facts API
+        if (!movieTitle) {
+          try {
+            const offResponse = await fetch(
+              `https://world.openfoodfacts.org/api/v0/product/${query}.json`
+            );
+            const offData = await offResponse.json();
+            
+            if (offData.product && offData.product.product_name) {
+              movieTitle = offData.product.product_name;
+            }
+          } catch (err) {
+            // Open Food Facts falló
+          }
+        }
+
+        // PASO 1D: Si aún no tenemos título, mostrar error
+        if (!movieTitle) {
+          setError(`No se pudo decodificar el código ${query}.\n\nIntenta:\n1. Ingresa el título de la película manualmente\n2. O contacta al soporte`);
           setUseManual(true);
           setLoading(false);
           return;
         }
+      } else {
+        movieTitle = query;
       }
-      
-      // PASO 2: Si no es código numérico, buscar por título en OMDb
+
+      // PASO 2: Buscar película en OMDb con el título decodificado
       const response = await fetch(
-        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(query)}&type=movie`
+        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(movieTitle)}&type=movie`
       );
       const data = await response.json();
 
@@ -80,11 +115,11 @@ export default function DVDForm({ onAdd }) {
         });
         setBarcode('');
       } else {
-        setError(`Película "${query}" no encontrada. Intenta con otro título o ingresa el código de barras si está registrado.`);
+        setError(`Película "${movieTitle}" no encontrada en IMDb. Completa manualmente o intenta con otro título.`);
         setUseManual(true);
       }
     } catch (err) {
-      setError('Error de conexión. Completa los datos manualmente.');
+      setError('Error de conexión. Intenta de nuevo o completa manualmente.');
       setUseManual(true);
     } finally {
       setLoading(false);
