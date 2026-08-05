@@ -20,10 +20,10 @@ export default function DVDForm({ onAdd }) {
   const [error, setError] = useState('');
   const [useManual, setUseManual] = useState(false);
 
-  // Búsqueda por código de barras o título - SISTEMA AUTOMÁTICO COMPLETO
+  // Búsqueda simple y real que FUNCIONA
   const searchByBarcode = async () => {
     if (!barcode.trim()) {
-      setError('Ingresa un código de barras o título');
+      setError('Ingresa el título de la película');
       return;
     }
 
@@ -32,11 +32,9 @@ export default function DVDForm({ onAdd }) {
 
     try {
       const query = barcode.trim();
-      let movieTitle = null;
       
-      // PASO 1: Si es un código de barras (números), intentar decodificar automáticamente
+      // Primero: Buscar en BD local si es código
       if (/^\d+$/.test(query) && query.length >= 10) {
-        // PASO 1A: Buscar primero en BD local
         const dvdLocal = searchDVDByBarcode(query);
         if (dvdLocal) {
           setFormData({
@@ -47,79 +45,43 @@ export default function DVDForm({ onAdd }) {
             edad: dvdLocal.edad || 'PG',
             actores: dvdLocal.actores || '',
             caratula: dvdLocal.caratula || '',
-            notas: `Código de barras: ${query} - ${dvdLocal.sinopsis || ''}`
+            notas: `Código: ${query} - ${dvdLocal.sinopsis || ''}`
           });
           setBarcode('');
           setLoading(false);
           return;
         }
-
-        // PASO 1B: Intentar decodificar con EAN Search API (GRATUITA)
-        try {
-          const eanResponse = await fetch(
-            `https://www.ean-search.org/?q=${query}&format=json`
-          );
-          const eanData = await eanResponse.json();
-          
-          if (eanData && eanData.barcodes && eanData.barcodes.length > 0) {
-            const product = eanData.barcodes[0];
-            movieTitle = product.name || product.title;
-          }
-        } catch (err) {
-          // EAN Search falló, intentar siguiente API
-        }
-
-        // PASO 1C: Intentar con Open Food Facts API
-        if (!movieTitle) {
-          try {
-            const offResponse = await fetch(
-              `https://world.openfoodfacts.org/api/v0/product/${query}.json`
-            );
-            const offData = await offResponse.json();
-            
-            if (offData.product && offData.product.product_name) {
-              movieTitle = offData.product.product_name;
-            }
-          } catch (err) {
-            // Open Food Facts falló
-          }
-        }
-
-        // PASO 1D: Si aún no tenemos título, mostrar error
-        if (!movieTitle) {
-          setError(`No se pudo decodificar el código ${query}.\n\nIntenta:\n1. Ingresa el título de la película manualmente\n2. O contacta al soporte`);
-          setUseManual(true);
-          setLoading(false);
-          return;
-        }
-      } else {
-        movieTitle = query;
+        // Si no está en BD local, pedir que ingrese el título
+        setError('Este código no está en nuestra BD. Ingresa el título de la película.');
+        setUseManual(true);
+        setLoading(false);
+        return;
       }
 
-      // PASO 2: Buscar película en OMDb con el título decodificado
+      // Búsqueda por título en OMDb
       const response = await fetch(
-        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(movieTitle)}&type=movie`
+        `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(query)}&type=movie`
       );
       const data = await response.json();
 
-      if (data.Response === 'True') {
+      if (data.Response === 'True' && data.Title) {
         setFormData({
           titulo: data.Title || '',
           año: data.Year || '',
           region: 'USA',
-          genre: data.Genre?.split(',')[0].trim() || '',
+          genre: data.Genre?.split(',')[0]?.trim() || '',
           edad: data.Rated || 'PG',
           actores: data.Actors || '',
           caratula: data.Poster && data.Poster !== 'N/A' ? data.Poster : '',
-          notas: `IMDB: ${data.imdbID} - ${data.Plot || ''}`
+          notas: data.Plot || ''
         });
         setBarcode('');
       } else {
-        setError(`Película "${movieTitle}" no encontrada en IMDb. Completa manualmente o intenta con otro título.`);
+        setError(`"${query}" no encontrada. Intenta con otro título.`);
         setUseManual(true);
       }
     } catch (err) {
-      setError('Error de conexión. Intenta de nuevo o completa manualmente.');
+      setError('Error: Verifica la conexión e intenta de nuevo.');
       setUseManual(true);
     } finally {
       setLoading(false);
