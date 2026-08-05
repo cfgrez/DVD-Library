@@ -1109,3 +1109,20 @@ textarea.input {
   color: #00d4ff;
   background: rgba(0, 212, 255, 0.08);
 }
+
+/* ---- Badge de clasificación por edad sobre la carátula ---- */
+.age-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(8, 12, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  backdrop-filter: blur(4px);
+  z-index: 2;
+}

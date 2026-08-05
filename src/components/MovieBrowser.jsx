@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Check, Plus, X } from 'lucide-react';
-import { expandedMoviesDatabase, allCategories } from '../data/moviesDB-expanded';
+import { expandedMoviesDatabase, allCategories, allRatings } from '../data/moviesDB-expanded';
 
 // Genera un gradiente estable a partir del titulo (misma pelicula = mismo color)
 function coverGradient(title) {
@@ -20,7 +20,7 @@ export function movieToDVD(movie) {
     año: movie.year ? String(movie.year) : '',
     region: '',
     genre: movie.categories?.[0] || '',
-    edad: 'N/A',
+    edad: movie.edad || 'N/D',
     actores: (movie.actors || []).join(', '),
     caratula: movie.poster || '',
     notas: movie.director ? `Director: ${movie.director}` : ''
@@ -32,6 +32,7 @@ const PAGE_SIZE = 60;
 export default function MovieBrowser({ dvds = [], onToggleMovie }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedRating, setSelectedRating] = useState('All');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const categories = useMemo(() => ['All', ...allCategories], []);
@@ -49,6 +50,12 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
       list = list.filter((m) => m.categories.includes(selectedCategory));
     }
 
+    if (selectedRating !== 'All') {
+      list = list.filter((m) =>
+        selectedRating === 'N/D' ? !m.edad : m.edad === selectedRating
+      );
+    }
+
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -60,7 +67,7 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
     }
 
     return list;
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, selectedRating]);
 
   const visibleMovies = filteredMovies.slice(0, visibleCount);
 
@@ -71,6 +78,11 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
 
   const handleCategory = (cat) => {
     setSelectedCategory(cat);
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const handleRating = (r) => {
+    setSelectedRating(r);
     setVisibleCount(PAGE_SIZE);
   };
 
@@ -117,6 +129,21 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
         </div>
       </div>
 
+      <div className="categories-section">
+        <h3>Clasificación por edad</h3>
+        <div className="categories-list">
+          {['All', ...allRatings, 'N/D'].map((r) => (
+            <button
+              key={r}
+              className={`category-btn ${selectedRating === r ? 'active' : ''}`}
+              onClick={() => handleRating(r)}
+            >
+              {r === 'All' ? 'Todas' : r}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="movies-grid">
         {visibleMovies.length > 0 ? (
           visibleMovies.map((movie) => {
@@ -147,6 +174,7 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
                     <span className="fb-title">{movie.name}</span>
                     <span className="fb-year">{movie.year || ''}</span>
                   </div>
+                  {movie.edad && <div className="age-badge">{movie.edad}</div>}
                   {owned && (
                     <div className="owned-check" title="Ya está en tu biblioteca">
                       <Check size={16} />
