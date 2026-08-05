@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Loader } from 'lucide-react';
 import { searchDVDByBarcode } from '../data/barcodeDatabase';
+import { searchMovieByName } from '../data/moviesDB';
 
 const OMDb_API_KEY = 'k_fx7nk87h';
 
@@ -20,7 +21,7 @@ export default function DVDForm({ onAdd }) {
   const [error, setError] = useState('');
   const [useManual, setUseManual] = useState(false);
 
-  // Búsqueda simple y real que FUNCIONA
+  // Búsqueda con BD local de películas + caratulas
   const searchByBarcode = async () => {
     if (!barcode.trim()) {
       setError('Ingresa el título de la película');
@@ -33,7 +34,25 @@ export default function DVDForm({ onAdd }) {
     try {
       const query = barcode.trim();
       
-      // Primero: Buscar en BD local si es código
+      // PRIMERO: Buscar en BD local de películas (con caratulas)
+      const movieFromDB = searchMovieByName(query);
+      if (movieFromDB) {
+        setFormData({
+          titulo: movieFromDB.name || '',
+          año: movieFromDB.year?.toString() || '',
+          region: 'USA',
+          genre: movieFromDB.categories?.[0] || '',
+          edad: 'PG-13',
+          actores: movieFromDB.actors?.join(', ') || '',
+          caratula: movieFromDB.poster || '',
+          notas: movieFromDB.storyline || ''
+        });
+        setBarcode('');
+        setLoading(false);
+        return;
+      }
+
+      // SEGUNDO: Buscar por código de barras registrado
       if (/^\d+$/.test(query) && query.length >= 10) {
         const dvdLocal = searchDVDByBarcode(query);
         if (dvdLocal) {
@@ -51,14 +70,9 @@ export default function DVDForm({ onAdd }) {
           setLoading(false);
           return;
         }
-        // Si no está en BD local, pedir que ingrese el título
-        setError('Este código no está en nuestra BD. Ingresa el título de la película.');
-        setUseManual(true);
-        setLoading(false);
-        return;
       }
 
-      // Búsqueda por título en OMDb
+      // TERCERO: Intentar con OMDb API (fallback)
       const response = await fetch(
         `https://www.omdbapi.com/?apikey=${OMDb_API_KEY}&t=${encodeURIComponent(query)}&type=movie`
       );
@@ -158,6 +172,17 @@ export default function DVDForm({ onAdd }) {
       </div>
 
       {error && <div className="error-box">{error}</div>}
+
+      {/* Vista previa de caratula */}
+      {formData.caratula && (
+        <div className="poster-preview">
+          <img 
+            src={formData.caratula} 
+            alt={formData.titulo} 
+            onError={(e) => e.target.style.display = 'none'}
+          />
+        </div>
+      )}
 
       {/* Formulario manual */}
       <div className="form-grid">
