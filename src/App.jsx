@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Trash2, Download, Upload, ChevronDown } from 'lucide-react';
 import DVDForm from './components/DVDForm';
 import DVDLibrary from './components/DVDLibrary';
+import MovieBrowser from './components/MovieBrowser';
 import './App.css';
 
 export default function App() {
@@ -9,6 +10,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState('titulo');
   const [filterGenre, setFilterGenre] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [activeView, setActiveView] = useState('biblioteca'); // 'biblioteca' o 'explorador'
 
   // Cargar DVDs desde localStorage al iniciar
   useEffect(() => {
@@ -113,32 +115,51 @@ export default function App() {
           </div>
           
           <div className="header-actions">
-            <button 
-              className="btn btn-primary"
-              onClick={() => setShowForm(!showForm)}
-            >
-              {showForm ? '✕ Cerrar' : '+ Agregar DVD'}
-            </button>
-            
-            <div className="dropdown">
-              <button className="btn btn-secondary">
-                ⚙️ Opciones <ChevronDown size={16} />
+            <div className="view-switcher">
+              <button 
+                className={`btn view-btn ${activeView === 'biblioteca' ? 'active' : ''}`}
+                onClick={() => setActiveView('biblioteca')}
+              >
+                📚 Mi Biblioteca
               </button>
-              <div className="dropdown-menu">
-                <button onClick={exportData}>
-                  <Download size={16} /> Exportar JSON
-                </button>
-                <label className="dropdown-item">
-                  <Upload size={16} /> Importar JSON
-                  <input 
-                    type="file" 
-                    accept=".json"
-                    onChange={importData}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-              </div>
+              <button 
+                className={`btn view-btn ${activeView === 'explorador' ? 'active' : ''}`}
+                onClick={() => setActiveView('explorador')}
+              >
+                🔍 Explorador
+              </button>
             </div>
+
+            {activeView === 'biblioteca' && (
+              <button 
+                className="btn btn-primary"
+                onClick={() => setShowForm(!showForm)}
+              >
+                {showForm ? '✕ Cerrar' : '+ Agregar DVD'}
+              </button>
+            )}
+            
+            {activeView === 'biblioteca' && (
+              <div className="dropdown">
+                <button className="btn btn-secondary">
+                  ⚙️ Opciones <ChevronDown size={16} />
+                </button>
+                <div className="dropdown-menu">
+                  <button onClick={exportData}>
+                    <Download size={16} /> Exportar JSON
+                  </button>
+                  <label className="dropdown-item">
+                    <Upload size={16} /> Importar JSON
+                    <input 
+                      type="file" 
+                      accept=".json"
+                      onChange={importData}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -150,54 +171,69 @@ export default function App() {
         </div>
       )}
 
-      {/* Controles de filtro y orden */}
-      <div className="controls">
-        <div className="control-group">
-          <label htmlFor="sortBy">Ordenar por:</label>
-          <select 
-            id="sortBy"
-            value={sortBy} 
-            onChange={(e) => setSortBy(e.target.value)}
-            className="select"
-          >
-            <option value="titulo">Título (A-Z)</option>
-            <option value="año">Año (Más reciente)</option>
-            <option value="genero">Género</option>
-            <option value="edad">Clasificación de edad</option>
-            <option value="recientemente">Recientemente agregado</option>
-          </select>
-        </div>
-
-        {genres.length > 0 && (
-          <div className="control-group">
-            <label htmlFor="filterGenre">Filtrar por género:</label>
-            <select 
-              id="filterGenre"
-              value={filterGenre} 
-              onChange={(e) => setFilterGenre(e.target.value)}
-              className="select"
-            >
-              <option value="">Todos los géneros</option>
-              {genres.sort().map(genre => (
-                <option key={genre} value={genre}>{genre}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="control-group info">
-          Mostrando {sortedDVDs.length} de {dvds.length} DVDs
-        </div>
-      </div>
-
-      {/* Biblioteca de DVDs */}
-      {sortedDVDs.length > 0 ? (
-        <DVDLibrary dvds={sortedDVDs} onDelete={deleteDVD} />
+      {/* VISTA: EXPLORADOR DE PELÍCULAS */}
+      {activeView === 'explorador' ? (
+        <MovieBrowser />
       ) : (
-        <div className="empty-state">
-          <p>🎬 Tu biblioteca está vacía</p>
-          <p className="empty-text">Comienza agregando DVDs usando el código de barras o manualmente</p>
-        </div>
+        <>
+          {/* VISTA: BIBLIOTECA PERSONAL */}
+          {/* Formulario para agregar DVD */}
+          {showForm && (
+            <div className="form-section">
+              <DVDForm onAdd={addDVD} />
+            </div>
+          )}
+
+          {/* Controles de filtro y orden */}
+          <div className="controls">
+            <div className="control-group">
+              <label htmlFor="sortBy">Ordenar por:</label>
+              <select 
+                id="sortBy"
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)}
+                className="select"
+              >
+                <option value="titulo">Título (A-Z)</option>
+                <option value="año">Año (Más reciente)</option>
+                <option value="genero">Género</option>
+                <option value="edad">Clasificación de edad</option>
+                <option value="recientemente">Recientemente agregado</option>
+              </select>
+            </div>
+
+            {genres.length > 0 && (
+              <div className="control-group">
+                <label htmlFor="filterGenre">Filtrar por género:</label>
+                <select 
+                  id="filterGenre"
+                  value={filterGenre} 
+                  onChange={(e) => setFilterGenre(e.target.value)}
+                  className="select"
+                >
+                  <option value="">Todos los géneros</option>
+                  {genres.sort().map(genre => (
+                    <option key={genre} value={genre}>{genre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="control-group info">
+              Mostrando {sortedDVDs.length} de {dvds.length} DVDs
+            </div>
+          </div>
+
+          {/* Biblioteca de DVDs */}
+          {sortedDVDs.length > 0 ? (
+            <DVDLibrary dvds={sortedDVDs} onDelete={deleteDVD} />
+          ) : (
+            <div className="empty-state">
+              <p>🎬 Tu biblioteca está vacía</p>
+              <p className="empty-text">Comienza usando el explorador para agregar películas a tu colección</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
