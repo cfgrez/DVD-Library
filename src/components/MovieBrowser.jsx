@@ -1,30 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Check, X } from 'lucide-react';
-import { expandedMoviesDatabase } from '../data/moviesDB-expanded';
+import { expandedMoviesDatabase, allCategories } from '../data/moviesDB-expanded';
+
+// Genera un gradiente estable a partir del titulo (misma pelicula = mismo color)
+function coverGradient(title) {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) {
+    hash = (hash * 31 + title.charCodeAt(i)) % 360;
+  }
+  const h2 = (hash + 45) % 360;
+  return `linear-gradient(145deg, hsl(${hash}, 45%, 28%), hsl(${h2}, 50%, 15%))`;
+}
 
 export default function MovieBrowser({ onMoviesChanged }) {
-  const [allMovies, setAllMovies] = useState(expandedMoviesDatabase);
+  const [allMovies, setAllMovies] = useState(() =>
+    expandedMoviesDatabase.map((m) => ({ ...m, owned: false }))
+  );
   const [filteredMovies, setFilteredMovies] = useState(allMovies);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [ownedCount, setOwnedCount] = useState(0);
 
-  const categories = ['All', 'Action', 'Drama', 'Comedy', 'Animation', 'Sci-Fi', 'Adventure', 'Romance', 'Horror', 'Thriller'];
+  const categories = ['All', ...allCategories];
 
   // Cargar estado guardado al montar
   useEffect(() => {
     const savedState = localStorage.getItem('moviesOwned');
     if (savedState) {
-      const owned = JSON.parse(savedState);
-      setAllMovies(prevMovies => 
-        prevMovies.map(movie => ({
-          ...movie,
-          owned: owned[movie.id] || false
-        }))
-      );
+      try {
+        const owned = JSON.parse(savedState);
+        setAllMovies((prev) =>
+          prev.map((movie) => ({ ...movie, owned: owned[movie.id] === true }))
+        );
+      } catch (e) {
+        console.warn('No se pudo leer la seleccion guardada:', e);
+      }
     }
-    updateCount();
   }, []);
+
+  // El contador siempre refleja el estado actual
+  useEffect(() => {
+    setOwnedCount(allMovies.filter((m) => m.owned).length);
+  }, [allMovies]);
 
   // Actualizar películas filtradas cuando cambia la búsqueda o categoría
   useEffect(() => {
@@ -48,11 +65,6 @@ export default function MovieBrowser({ onMoviesChanged }) {
     setFilteredMovies(filtered);
   }, [searchQuery, selectedCategory, allMovies]);
 
-  const updateCount = () => {
-    const count = allMovies.filter(m => m.owned).length;
-    setOwnedCount(count);
-  };
-
   const toggleMovie = (movieId) => {
     const updatedMovies = allMovies.map(movie =>
       movie.id === movieId ? { ...movie, owned: !movie.owned } : movie
@@ -67,7 +79,6 @@ export default function MovieBrowser({ onMoviesChanged }) {
       }
     });
     localStorage.setItem('moviesOwned', JSON.stringify(ownedMovies));
-    updateCount();
     
     if (onMoviesChanged) {
       onMoviesChanged(updatedMovies.filter(m => m.owned));
@@ -130,14 +141,23 @@ export default function MovieBrowser({ onMoviesChanged }) {
                     src={movie.poster}
                     alt={movie.name}
                     className="movie-poster"
+                    loading="lazy"
                     onError={(e) => {
                       e.target.style.display = 'none';
-                      e.target.nextElementSibling?.style.display = 'flex';
+                      const fb = e.target.nextElementSibling;
+                      if (fb) fb.style.display = 'flex';
                     }}
                   />
                 ) : null}
-                <div className="movie-poster-fallback">
-                  <p>{movie.name}</p>
+                <div
+                  className="movie-poster-fallback"
+                  style={{
+                    display: movie.poster ? 'none' : 'flex',
+                    background: coverGradient(movie.name),
+                  }}
+                >
+                  <span className="fb-title">{movie.name}</span>
+                  <span className="fb-year">{movie.year || ''}</span>
                 </div>
               </div>
 
