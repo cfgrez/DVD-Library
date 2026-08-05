@@ -1126,3 +1126,141 @@ textarea.input {
   backdrop-filter: blur(4px);
   z-index: 2;
 }
+
+/* ============ BÚSQUEDA ONLINE (TMDB) ============ */
+.tmdb-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.tmdb-settings {
+  background: rgba(0, 212, 255, 0.06);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.tmdb-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  color: #00d4ff;
+}
+
+.tmdb-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.tmdb-head p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b0b0b0;
+  line-height: 1.5;
+}
+
+.tmdb-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tmdb-row .input-large {
+  min-width: 240px;
+}
+
+.tmdb-msg {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.tmdb-msg.saved {
+  background: rgba(0, 212, 255, 0.14);
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  color: #7fe6ff;
+}
+
+.tmdb-msg.error {
+  background: rgba(233, 69, 96, 0.18);
+  border: 1px solid rgba(233, 69, 96, 0.45);
+  color: #ff8fa3;
+}
+
+.tmdb-msg.testing {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #d0d0d0;
+}
+
+.tmdb-note {
+  margin: 14px 0 0;
+  font-size: 0.78rem;
+  color: #7a7a8a;
+  line-height: 1.55;
+}
+
+.tmdb-section {
+  margin-top: 38px;
+  padding-top: 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tmdb-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.tmdb-section-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #fff;
+}
+
+.tmdb-empty {
+  color: #909090;
+  font-size: 0.92rem;
+}
+
+.tmdb-tag {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(1, 180, 228, 0.92);
+  color: #04212b;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  z-index: 2;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 600px) {
+  .tmdb-row .input-large {
+    min-width: 100%;
+  }
+  .tmdb-section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

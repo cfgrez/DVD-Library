@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Check, Plus, X } from 'lucide-react';
+import { Search, Check, Plus, X, Globe, Loader } from 'lucide-react';
 import { expandedMoviesDatabase, allCategories, allRatings } from '../data/moviesDB-expanded';
+import { hasApiKey, searchTMDB, getMovieDetails } from '../services/tmdb';
+import TMDBSettings from './TMDBSettings';
 
 // Genera un gradiente estable a partir del titulo (misma pelicula = mismo color)
 function coverGradient(title) {
@@ -23,7 +25,15 @@ export function movieToDVD(movie) {
     edad: movie.edad || 'N/D',
     actores: (movie.actors || []).join(', '),
     caratula: movie.poster || '',
-    notas: movie.director ? `Director: ${movie.director}` : ''
+    notas: [
+      movie.director ? `Director: ${movie.director}` : '',
+      movie.originalName && movie.originalName !== movie.name
+        ? `Título original: ${movie.originalName}`
+        : '',
+      movie.overview || ''
+    ]
+      .filter(Boolean)
+      .join('\n\n')
   };
 }
 
@@ -34,6 +44,13 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedRating, setSelectedRating] = useState('All');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [tmdbResults, setTmdbResults] = useState([]);
+  const [tmdbLoading, setTmdbLoading] = useState(false);
+  const [tmdbError, setTmdbError] = useState('');
+  const [tmdbSearched, setTmdbSearched] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [keyPresent, setKeyPresent] = useState(hasApiKey());
+  const [addingId, setAddingId] = useState(null);
 
   const categories = useMemo(() => ['All', ...allCategories], []);
 
@@ -86,6 +103,58 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
     setVisibleCount(PAGE_SIZE);
   };
 
+
+  const buscarEnTMDB = async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+
+    setTmdbLoading(true);
+    setTmdbError('');
+    try {
+      const { results } = await searchTMDB(q);
+      const yaEnCatalogo = new Set(
+        filteredMovies.map((m) => `${m.name.toLowerCase()}|${m.year}`)
+      );
+      // no repetir lo que ya salio en la busqueda local
+      setTmdbResults(
+        results.filter((r) => !yaEnCatalogo.has(`${r.name.toLowerCase()}|${r.year}`))
+      );
+      setTmdbSearched(q);
+    } catch (err) {
+      setTmdbResults([]);
+      if (err.message === 'SIN_KEY') {
+        setTmdbError('Necesitas configurar tu API key de TMDB.');
+        setShowSettings(true);
+      } else if (err.message === 'KEY_INVALIDA') {
+        setTmdbError('TMDB rechazó la key. Revísala en Configurar búsqueda online.');
+        setShowSettings(true);
+      } else {
+        setTmdbError('No se pudo conectar con TMDB. Revisa tu conexión.');
+      }
+    } finally {
+      setTmdbLoading(false);
+    }
+  };
+
+  // Al agregar una pelicula de TMDB pedimos los datos completos
+  // (director, reparto y clasificacion chilena), que la busqueda no trae.
+  const agregarDesdeTMDB = async (movie) => {
+    if (onToggleMovie && ownedIds.has(movie.id)) {
+      onToggleMovie(movie);
+      return;
+    }
+    setAddingId(movie.id);
+    try {
+      const full = await getMovieDetails(movie.tmdbId);
+      if (onToggleMovie) onToggleMovie(full);
+    } catch (err) {
+      // si fallan los detalles guardamos lo que ya tenemos
+      if (onToggleMovie) onToggleMovie(movie);
+    } finally {
+      setAddingId(null);
+    }
+  };
+
   return (
     <div className="movie-browser">
       <div className="browser-header">
@@ -95,6 +164,22 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
           biblioteca
         </p>
       </div>
+
+      <div className="tmdb-toggle-row">
+        <button className="btn btn-secondary" onClick={() => setShowSettings((v) => !v)}>
+          <Globe size={16} />
+          {keyPresent ? 'Búsqueda online activa' : 'Configurar búsqueda online'}
+        </button>
+      </div>
+
+      {showSettings && (
+        <TMDBSettings
+          onKeyChange={(k) => {
+            setKeyPresent(Boolean(k));
+            if (k) setShowSettings(false);
+          }}
+        />
+      )}
 
       <div className="search-section">
         <div className="search-input-wrapper">
@@ -222,6 +307,98 @@ export default function MovieBrowser({ dvds = [], onToggleMovie }) {
           </button>
         </div>
       )}
+
+      {searchQuery.trim() && (
+        <div className="tmdb-section">
+          <div className="tmdb-section-head">
+            <h3>
+              ¿No está en el catálogo? Búscala en TMDB
+              {tmdbSearched && tmdbResults.length > 0 && ` — ${tmdbResults.length} resultados`}
+            </h3>
+            <button className="btn btn-primary" onClick={buscarEnTMDB} disabled={tmdbLoading}>
+              {tmdbLoading ? <Loader size={16} className="spin" /> : <Globe size={16} />}
+              {tmdbLoading ? 'Buscando...' : `Buscar "${searchQuery.trim()}" online`}
+            </button>
+          </div>
+
+          {tmdbError && <div className="error-box">{tmdbError}</div>}
+
+          {tmdbSearched && !tmdbLoading && tmdbResults.length === 0 && !tmdbError && (
+            <p className="tmdb-empty">TMDB tampoco encontró resultados para "{tmdbSearched}".</p>
+          )}
+
+          {tmdbResults.length > 0 && (
+            <div className="movies-grid">
+              {tmdbResults.map((movie) => {
+                const owned = ownedIds.has(movie.id);
+                const cargando = addingId === movie.id;
+                return (
+                  <div key={movie.id} className={`movie-item ${owned ? 'owned' : ''}`}>
+                    <div className="movie-poster-wrapper">
+                      {movie.poster ? (
+                        <img
+                          src={movie.poster}
+                          alt={movie.name}
+                          className="movie-poster"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const fb = e.target.nextElementSibling;
+                            if (fb) fb.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="movie-poster-fallback"
+                        style={{
+                          display: movie.poster ? 'none' : 'flex',
+                          background: coverGradient(movie.name)
+                        }}
+                      >
+                        <span className="fb-title">{movie.name}</span>
+                        <span className="fb-year">{movie.year || ''}</span>
+                      </div>
+                      <div className="tmdb-tag">TMDB</div>
+                      {owned && (
+                        <div className="owned-check">
+                          <Check size={16} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="movie-info">
+                      <h4 title={movie.name}>{movie.name}</h4>
+                      <p className="movie-year">{movie.year || 'Año desconocido'}</p>
+                      <p className="movie-genres">{movie.categories.join(', ')}</p>
+                    </div>
+
+                    <button
+                      className={`own-button ${owned ? 'owned' : ''}`}
+                      onClick={() => agregarDesdeTMDB(movie)}
+                      disabled={cargando}
+                    >
+                      {cargando ? (
+                        <>
+                          <Loader size={16} className="spin" /> Agregando
+                        </>
+                      ) : owned ? (
+                        <>
+                          <Check size={16} /> En mi biblioteca
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={16} /> Agregar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
