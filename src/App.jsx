@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Trash2, Download, Upload, ChevronDown } from 'lucide-react';
 import DVDForm from './components/DVDForm';
 import DVDLibrary from './components/DVDLibrary';
-import MovieBrowser from './components/MovieBrowser';
+import MovieBrowser, { movieToDVD } from './components/MovieBrowser';
 import './App.css';
 
 export default function App() {
@@ -14,6 +14,9 @@ export default function App() {
 
   // Cargar DVDs desde localStorage al iniciar
   useEffect(() => {
+    // Limpieza: version anterior guardaba una lista aparte que no se usaba
+    localStorage.removeItem('moviesOwned');
+
     const saved = localStorage.getItem('dvdLibrary');
     if (saved) {
       try {
@@ -38,6 +41,24 @@ export default function App() {
     };
     setDvds([dvdWithId, ...dvds]);
     setShowForm(false);
+  };
+
+  // Marcar/desmarcar una pelicula del explorador: escribe en la MISMA biblioteca
+  const toggleMovieInLibrary = (movie) => {
+    setDvds((prev) => {
+      const existing = prev.find((d) => d.sourceId === movie.id);
+      if (existing) {
+        return prev.filter((d) => d.sourceId !== movie.id);
+      }
+      return [
+        {
+          ...movieToDVD(movie),
+          id: Date.now() + Math.random(),
+          dateAdded: new Date().toLocaleDateString('es-ES')
+        },
+        ...prev
+      ];
+    });
   };
 
   // Eliminar un DVD
@@ -173,7 +194,7 @@ export default function App() {
 
       {/* VISTA: EXPLORADOR DE PELÍCULAS */}
       {activeView === 'explorador' ? (
-        <MovieBrowser />
+        <MovieBrowser dvds={dvds} onToggleMovie={toggleMovieInLibrary} />
       ) : (
         <>
           {/* VISTA: BIBLIOTECA PERSONAL */}

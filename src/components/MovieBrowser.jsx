@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Check, X } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Check, Plus, X } from 'lucide-react';
 import { expandedMoviesDatabase, allCategories } from '../data/moviesDB-expanded';
 
 // Genera un gradiente estable a partir del titulo (misma pelicula = mismo color)
@@ -12,186 +12,188 @@ function coverGradient(title) {
   return `linear-gradient(145deg, hsl(${hash}, 45%, 28%), hsl(${h2}, 50%, 15%))`;
 }
 
-export default function MovieBrowser({ onMoviesChanged }) {
-  const [allMovies, setAllMovies] = useState(() =>
-    expandedMoviesDatabase.map((m) => ({ ...m, owned: false }))
-  );
-  const [filteredMovies, setFilteredMovies] = useState(allMovies);
+// Convierte una pelicula del catalogo al formato que usa la biblioteca
+export function movieToDVD(movie) {
+  return {
+    sourceId: movie.id,
+    titulo: movie.name,
+    año: movie.year ? String(movie.year) : '',
+    region: '',
+    genre: movie.categories?.[0] || '',
+    edad: 'N/A',
+    actores: (movie.actors || []).join(', '),
+    caratula: movie.poster || '',
+    notas: movie.director ? `Director: ${movie.director}` : ''
+  };
+}
+
+const PAGE_SIZE = 60;
+
+export default function MovieBrowser({ dvds = [], onToggleMovie }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [ownedCount, setOwnedCount] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const categories = ['All', ...allCategories];
+  const categories = useMemo(() => ['All', ...allCategories], []);
 
-  // Cargar estado guardado al montar
-  useEffect(() => {
-    const savedState = localStorage.getItem('moviesOwned');
-    if (savedState) {
-      try {
-        const owned = JSON.parse(savedState);
-        setAllMovies((prev) =>
-          prev.map((movie) => ({ ...movie, owned: owned[movie.id] === true }))
-        );
-      } catch (e) {
-        console.warn('No se pudo leer la seleccion guardada:', e);
-      }
-    }
-  }, []);
+  // La fuente de verdad es la biblioteca, no una lista aparte
+  const ownedIds = useMemo(
+    () => new Set(dvds.map((d) => d.sourceId).filter((id) => id !== undefined)),
+    [dvds]
+  );
 
-  // El contador siempre refleja el estado actual
-  useEffect(() => {
-    setOwnedCount(allMovies.filter((m) => m.owned).length);
-  }, [allMovies]);
-
-  // Actualizar películas filtradas cuando cambia la búsqueda o categoría
-  useEffect(() => {
-    let filtered = allMovies;
+  const filteredMovies = useMemo(() => {
+    let list = expandedMoviesDatabase;
 
     if (selectedCategory !== 'All') {
-      filtered = filtered.filter(movie =>
-        movie.categories.includes(selectedCategory)
+      list = list.filter((m) => m.categories.includes(selectedCategory));
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          m.director.toLowerCase().includes(q) ||
+          m.actors.some((a) => a.toLowerCase().includes(q))
       );
     }
 
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(movie =>
-        movie.name.toLowerCase().includes(lowerQuery) ||
-        movie.director.toLowerCase().includes(lowerQuery) ||
-        movie.actors.some(actor => actor.toLowerCase().includes(lowerQuery))
-      );
-    }
+    return list;
+  }, [searchQuery, selectedCategory]);
 
-    setFilteredMovies(filtered);
-  }, [searchQuery, selectedCategory, allMovies]);
+  const visibleMovies = filteredMovies.slice(0, visibleCount);
 
-  const toggleMovie = (movieId) => {
-    const updatedMovies = allMovies.map(movie =>
-      movie.id === movieId ? { ...movie, owned: !movie.owned } : movie
-    );
-    setAllMovies(updatedMovies);
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    setVisibleCount(PAGE_SIZE);
+  };
 
-    // Guardar en localStorage
-    const ownedMovies = {};
-    updatedMovies.forEach(movie => {
-      if (movie.owned) {
-        ownedMovies[movie.id] = true;
-      }
-    });
-    localStorage.setItem('moviesOwned', JSON.stringify(ownedMovies));
-    
-    if (onMoviesChanged) {
-      onMoviesChanged(updatedMovies.filter(m => m.owned));
-    }
+  const handleCategory = (cat) => {
+    setSelectedCategory(cat);
+    setVisibleCount(PAGE_SIZE);
   };
 
   return (
     <div className="movie-browser">
       <div className="browser-header">
-        <h2>🎬 Explora Películas ({filteredMovies.length} encontradas)</h2>
-        <p className="owned-badge">Tu biblioteca: {ownedCount} películas</p>
+        <h2>Explorar películas</h2>
+        <p className="owned-badge">
+          {filteredMovies.length} de {expandedMoviesDatabase.length} títulos · tienes {ownedIds.size} en tu
+          biblioteca
+        </p>
       </div>
 
-      {/* Búsqueda */}
       <div className="search-section">
         <div className="search-input-wrapper">
           <Search size={20} />
           <input
             type="text"
-            placeholder="Busca por título, director, actor..."
+            placeholder="Busca por título, director o actor..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="search-input"
           />
           {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="clear-search"
-            >
+            <button onClick={() => handleSearch('')} className="clear-search" aria-label="Limpiar búsqueda">
               <X size={18} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Categorías */}
       <div className="categories-section">
         <h3>Géneros</h3>
         <div className="categories-list">
-          {categories.map(cat => (
+          {categories.map((cat) => (
             <button
               key={cat}
               className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => handleCategory(cat)}
             >
-              {cat}
+              {cat === 'All' ? 'Todos' : cat}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Grid de películas */}
       <div className="movies-grid">
-        {filteredMovies.length > 0 ? (
-          filteredMovies.map(movie => (
-            <div key={movie.id} className={`movie-item ${movie.owned ? 'owned' : ''}`}>
-              <div className="movie-poster-wrapper">
-                {movie.poster ? (
-                  <img
-                    src={movie.poster}
-                    alt={movie.name}
-                    className="movie-poster"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      const fb = e.target.nextElementSibling;
-                      if (fb) fb.style.display = 'flex';
+        {visibleMovies.length > 0 ? (
+          visibleMovies.map((movie) => {
+            const owned = ownedIds.has(movie.id);
+            return (
+              <div key={movie.id} className={`movie-item ${owned ? 'owned' : ''}`}>
+                <div className="movie-poster-wrapper">
+                  {movie.poster ? (
+                    <img
+                      src={movie.poster}
+                      alt={movie.name}
+                      className="movie-poster"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fb = e.target.nextElementSibling;
+                        if (fb) fb.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className="movie-poster-fallback"
+                    style={{
+                      display: movie.poster ? 'none' : 'flex',
+                      background: coverGradient(movie.name)
                     }}
-                  />
-                ) : null}
-                <div
-                  className="movie-poster-fallback"
-                  style={{
-                    display: movie.poster ? 'none' : 'flex',
-                    background: coverGradient(movie.name),
-                  }}
-                >
-                  <span className="fb-title">{movie.name}</span>
-                  <span className="fb-year">{movie.year || ''}</span>
+                  >
+                    <span className="fb-title">{movie.name}</span>
+                    <span className="fb-year">{movie.year || ''}</span>
+                  </div>
+                  {owned && (
+                    <div className="owned-check" title="Ya está en tu biblioteca">
+                      <Check size={16} />
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <div className="movie-info">
-                <h4 title={movie.name}>{movie.name}</h4>
-                <p className="movie-year">{movie.year}</p>
-                <p className="movie-director">{movie.director}</p>
-                <p className="movie-genres">{movie.categories.join(', ')}</p>
-              </div>
+                <div className="movie-info">
+                  <h4 title={movie.name}>{movie.name}</h4>
+                  <p className="movie-year">{movie.year || 'Año desconocido'}</p>
+                  <p className="movie-director" title={movie.director}>
+                    {movie.director}
+                  </p>
+                  <p className="movie-genres">{movie.categories.join(', ')}</p>
+                </div>
 
-              <button
-                className={`own-button ${movie.owned ? 'owned' : ''}`}
-                onClick={() => toggleMovie(movie.id)}
-              >
-                {movie.owned ? (
-                  <>
-                    <Check size={16} />
-                    Tengo esta
-                  </>
-                ) : (
-                  <>
-                    <X size={16} />
-                    Agregar
-                  </>
-                )}
-              </button>
-            </div>
-          ))
+                <button
+                  className={`own-button ${owned ? 'owned' : ''}`}
+                  onClick={() => onToggleMovie && onToggleMovie(movie)}
+                >
+                  {owned ? (
+                    <>
+                      <Check size={16} /> En mi biblioteca
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} /> Agregar
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })
         ) : (
           <div className="no-results">
-            <p>No se encontraron películas</p>
+            <p>No se encontraron películas con esos criterios</p>
           </div>
         )}
       </div>
+
+      {visibleCount < filteredMovies.length && (
+        <div className="load-more-wrapper">
+          <button className="btn load-more" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+            Mostrar más ({filteredMovies.length - visibleCount} restantes)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
